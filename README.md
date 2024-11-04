@@ -20,7 +20,13 @@ Each objects require more memory due to ui design
 
 Drawing not smooth compare to others editors.
 
-Didn't test ability to connect public network.
+# Issues
+
+Didn't test ability to connect public network. Only work on local network. (Testing issue)
+
+Minimize windows will crash the application. (UI issue)
+
+Resize tool either working or not, doesn't apply value change, only view illusion.
 
 # Feedback
 
