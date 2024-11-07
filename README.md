@@ -17,7 +17,6 @@ View path as pixels without the need export to view.
 Ctr + C on path copy as image.
 
 # Downside
-Each objects require more memory due to ui design
 
 Drawing not smooth compare to others editors.
 
