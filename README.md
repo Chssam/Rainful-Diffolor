@@ -3,7 +3,6 @@ Source code will publish once everything ready.
 # Rainful-Diffolor
 Design, Create, Share creativity in real time.
 
-![image](https://github.com/Chssam/Rainful-Diffolor/blob/main/Display/Screen%201.png?raw=true)
 ![image](https://github.com/Chssam/Rainful-Diffolor/blob/main/Display/Rainful%20Diffolor%201730888099418544700.png?raw=true)
 
 Support editing both graphic, raster & vector (Image & SVG).
@@ -49,7 +48,9 @@ zeno - Calculate path size and location into image
 
 raqote - Draw all path related attributes into image
 
-sickle_ui - The design I did took from, but I still decide to make my UI backend
+sickle_ui - The idea I did took from,
+but the nodes become quite heavy when many spawned behind without be active use,
+I decided to make my own UI just to prevent nodes taking up memory space.
 
 ...
 
