@@ -20,6 +20,10 @@ impl Plugin for LocalViewPlugin {
 					selected_obj_outline,
 					shape_drawer,
 					receive_marker_draw,
+					// change_obj_wire_color,
+					// change_selected_wire,
+					// mesh2d_image
+					// draw_grid_box,
 				),
 			)
 			.add_systems(FixedUpdate, draw_xy_line);

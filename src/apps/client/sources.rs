@@ -13,6 +13,7 @@ use client::Replicate;
 use image::*;
 use imageproc::drawing::draw_line_segment_mut;
 use leafwing_input_manager::prelude::*;
+use moonshine_save::save::Save;
 use strum::EnumIter;
 
 #[derive(Reflect, Debug, Clone, Copy, Default, Eq, PartialEq, Hash, SubStates)]
@@ -75,6 +76,7 @@ pub struct MainUserBundle {
 	action_tool: InputManagerBundle<EditorTools>,
 	action_one: InputManagerBundle<ToolsStandAlone>,
 	action_normal: InputManagerBundle<SettingsAction>,
+	save: Save,
 }
 
 impl MainUserBundle {

@@ -1,5 +1,4 @@
-use async_compat::Compat;
-use bevy::{prelude::*, tasks::IoTaskPool};
+use bevy::prelude::*;
 use bevy_cosmic_edit::*;
 use client::{ClientConfig, ClientTransport};
 use lightyear::prelude::*;
@@ -10,9 +9,7 @@ use std::net::IpAddr;
 use super::*;
 
 pub(super) fn client_system(
-	_trigger: Trigger<RunEffect>,
 	server_state: Res<State<RdioClientState>>,
-	ip_accept: Res<IPAccept>,
 	mut next_server_state: ResMut<NextState<RdioClientState>>,
 	mut query_addr: ParamSet<(
 		Query<(Entity, &mut CosmicBuffer), With<ConnectionIP>>,
@@ -43,20 +40,10 @@ pub(super) fn client_system(
 	let ClientTransport::UdpSocket(socker) = &mut io.transport else {
 		unreachable!();
 	};
-	let is_private = match ip {
-		IpAddr::V4(ipv4_addr) => ipv4_addr.is_private(),
-		IpAddr::V6(ipv6_addr) => ipv6_addr.to_ipv4().unwrap().is_private(),
-	};
 	let ip_ready = if ip.is_loopback() {
 		CLIENT_ADDR.ip()
-	} else if is_private {
-		local_ip().unwrap()
 	} else {
-		if let Some(ip) = ip_accept.1 {
-			ip
-		} else {
-			return;
-		}
+		local_ip().unwrap()
 	};
 	socker.set_ip(ip_ready);
 	socker.set_port(port);
@@ -71,7 +58,6 @@ pub(super) fn client_system(
 }
 
 pub(super) fn server_system(
-	_trigger: Trigger<RunEffect>,
 	server_state: Res<State<RdioServerState>>,
 	mut next_server_state: ResMut<NextState<RdioServerState>>,
 	mut query_addr: ParamSet<(
@@ -109,7 +95,6 @@ pub(super) fn server_system(
 }
 
 pub(super) fn select_ip_self(
-	_trigger: Trigger<RunEffect>,
 	mut ip: Query<&mut CosmicBuffer, With<ConnectionIP>>,
 	mut font_system: ResMut<CosmicFontSystem>,
 ) {
@@ -118,34 +103,9 @@ pub(super) fn select_ip_self(
 }
 
 pub(super) fn select_ip_local(
-	_trigger: Trigger<RunEffect>,
 	mut ip: Query<&mut CosmicBuffer, With<ConnectionIP>>,
 	mut font_system: ResMut<CosmicFontSystem>,
 ) {
 	let ip_ip = local_ip().unwrap_or(CLIENT_ADDR.ip()).to_string();
 	ip.single_mut().set_text_only(&mut font_system, &ip_ip);
-}
-
-pub(super) fn select_ip_public(_trigger: Trigger<RunEffect>, ip_accept: Res<IPAccept>) {
-	let arced = ip_accept.clone();
-	IoTaskPool::get()
-		.spawn(Compat::new(async move {
-			let ip_public = public_ip::addr().await;
-			*arced.0.write().unwrap() = ip_public;
-		}))
-		.detach();
-}
-
-pub(super) fn accept_public_ip(
-	mut ip_accept: ResMut<IPAccept>,
-	mut ip: Query<&mut CosmicBuffer, With<ConnectionIP>>,
-	mut font_system: ResMut<CosmicFontSystem>,
-) {
-	let locked = ip_accept.0.read().unwrap().clone();
-	if let Some(iped) = locked {
-		let ip_ip = iped.to_string();
-		ip.single_mut().set_text_only(&mut font_system, &ip_ip);
-		ip_accept.1 = locked;
-		*ip_accept.0.write().unwrap() = None;
-	}
 }

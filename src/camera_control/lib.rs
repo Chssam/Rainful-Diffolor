@@ -96,7 +96,7 @@ pub(super) trait TiledBgColor {
 impl TiledBgColor for ClearColor {
 	/// Guarateen total (2x2) * 4 = 16
 	fn bg_color(&self) -> Vec<u8> {
-		let color_1 = self.lighter(0.05).to_srgba().to_u8_array();
+		let color_1 = self.lighter(0.1).to_srgba().to_u8_array();
 		let color_2 = self.to_srgba().to_u8_array();
 		[color_1, color_2, color_2, color_1].concat()
 	}

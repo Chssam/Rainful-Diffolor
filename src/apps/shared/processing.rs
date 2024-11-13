@@ -16,6 +16,10 @@ pub fn connect_relations<T: Event + Relation + Clone>(
 	cmd.entity(*ent2).set::<T>(*ent1);
 }
 
+// pub(super) fn revert_change(trigger: Trigger<ObjectBirNet>) {
+// 	let ent_obj = trigger.entity();
+// }
+
 pub(super) fn convert_right<
 	T: Component + Clone + Serialize + PartialEq + DeserializeOwned + Into<U>,
 	U: Component + Clone,

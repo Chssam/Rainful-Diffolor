@@ -1,18 +1,16 @@
 use aery::prelude::*;
 use bevy::prelude::*;
-use bevy_mod_picking::prelude::{Up as PickUp, *};
+use bevy_mod_picking::prelude::*;
+use sickle_ui::prelude::*;
 
 use super::*;
 
-#[derive(Relation, Clone, Copy)]
-#[aery(Recursive)]
+#[derive(Relation)]
+#[aery(Total, Symmetric, Poly)]
 pub struct ObjectRelationUI;
 
 #[derive(Component)]
-pub struct IconVisiblity;
-
-#[derive(Component)]
-pub struct IconMoveLock;
+pub struct LargeIcon;
 
 #[derive(Component)]
 pub struct BrushCollector;
@@ -20,18 +18,62 @@ pub struct BrushCollector;
 #[derive(Event)]
 pub struct NewBrush(pub BrushRef, pub UVec2, pub Vec<u8>);
 
+impl LargeIcon {
+	fn bundle(size: f32) -> impl Bundle {
+		let size = Val::Px(size);
+		let all_side = UiRect::all(Val::Px(2.0));
+		ImageBundle {
+			style: Style {
+				width: size,
+				height: size,
+				border: all_side,
+				margin: all_side,
+				..default()
+			},
+			..default()
+		}
+	}
+}
+
+pub trait UiMoreIconExt {
+	fn medium_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity>;
+	fn large_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity>;
+	fn extra_large_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity>;
+}
+
+impl UiMoreIconExt for UiBuilder<'_, Entity> {
+	fn medium_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity> {
+		let mut icon = self.spawn((Name::new("Medium Icon"), LargeIcon::bundle(20.0), LargeIcon));
+		icon.style().image(image_source);
+		icon
+	}
+	fn large_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity> {
+		let mut icon = self.spawn((Name::new("Large Icon"), LargeIcon::bundle(28.0), LargeIcon));
+		icon.style().image(image_source);
+		icon
+	}
+	fn extra_large_icon(&mut self, image_source: ImageSource) -> UiBuilder<Entity> {
+		let mut icon = self.spawn((
+			Name::new("Extra Large Icon"),
+			LargeIcon::bundle(36.0),
+			LargeIcon,
+		));
+		icon.style().image(image_source);
+		icon
+	}
+}
+
 #[derive(Reflect)]
 pub(super) enum AttactObject {
 	Pick,
 	LockPick,
-	#[reflect(@ToolPath("gimp-visible.png"))]
 	Visibility,
 }
 
 impl AttactObject {
-	pub fn target_up(&self, ent_obj: Entity) -> On<Pointer<PickUp>> {
+	pub fn target(&self, ent_obj: Entity) -> On<Pointer<Click>> {
 		match self {
-			AttactObject::Pick => On::<Pointer<PickUp>>::run(
+			AttactObject::Pick => On::<Pointer<Click>>::run(
 				move |mut query_user: Query<&mut SelectedObject, With<MainUser>>| {
 					let Ok(mut selected_obj) = query_user.get_single_mut() else {
 						return;
@@ -44,7 +86,7 @@ impl AttactObject {
 				},
 			),
 			AttactObject::LockPick => {
-				On::<Pointer<PickUp>>::run(move |mut query_object: Query<&mut Pickable>| {
+				On::<Pointer<Click>>::run(move |mut query_object: Query<&mut Pickable>| {
 					let Ok(mut pick_lock) = query_object.get_mut(ent_obj) else {
 						return;
 					};
@@ -52,7 +94,7 @@ impl AttactObject {
 				})
 			},
 			AttactObject::Visibility => {
-				On::<Pointer<PickUp>>::run(move |mut query_object: Query<&mut Visibility>| {
+				On::<Pointer<Click>>::run(move |mut query_object: Query<&mut Visibility>| {
 					let Ok(mut visibility) = query_object.get_mut(ent_obj) else {
 						return;
 					};
@@ -69,7 +111,7 @@ impl AttactObject {
 #[derive(Component)]
 pub(super) struct HexColorText;
 
-#[derive(Component, Clone)]
+#[derive(Component)]
 pub(super) struct ColorChoice;
 
 #[derive(Component)]
@@ -79,22 +121,4 @@ pub(super) struct DisplayObjectDirectory;
 pub enum DisplayColor {
 	Foreground,
 	Background,
-}
-
-impl ObjectActionNet {
-	pub fn target_up(self, obj_ent: Entity) -> On<Pointer<PickUp>> {
-		On::<Pointer<PickUp>>::run(move |mut client: ResMut<ClientConnectionManager>| {
-			client
-				.send_message_to_target::<MainChannel, ObjectActionToServer>(
-					&mut ObjectActionToServer {
-						obj_ent,
-						action: self,
-					},
-					NetworkTarget::All,
-				)
-				.unwrap_or_else(|e| {
-					error!("Fail to send message: {:?}", e);
-				});
-		})
-	}
 }

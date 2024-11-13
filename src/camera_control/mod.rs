@@ -1,4 +1,4 @@
-use bevy::{color::palettes::tailwind::NEUTRAL_800, prelude::*, window::WindowResized};
+use bevy::{color::palettes::tailwind::GRAY_700, prelude::*, window::WindowResized};
 use bevy_cosmic_edit::FocusedWidget;
 use bevy_mod_picking::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -11,7 +11,7 @@ pub(super) struct CameraPlugin;
 impl Plugin for CameraPlugin {
 	fn build(&self, app: &mut App) {
 		app.init_resource::<IsUnFocusOnUI>()
-			.insert_resource(ClearColor(NEUTRAL_800.into()))
+			.insert_resource(ClearColor(GRAY_700.into()))
 			.add_plugins(InputManagerPlugin::<GlobalCamAction>::default())
 			.add_systems(Startup, setup_cam)
 			.add_systems(

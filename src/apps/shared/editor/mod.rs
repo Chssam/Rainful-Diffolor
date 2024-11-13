@@ -2,15 +2,15 @@ use arboard::Clipboard;
 use bevy::{
 	input::common_conditions::input_just_pressed,
 	prelude::*,
-	time::common_conditions::on_timer,
 	window::{CursorGrabMode, PrimaryWindow},
 };
 use bevy_cosmic_edit::*;
 use bevy_mod_picking::prelude::{On, *};
 use cosmic_text::{Attrs, Edit as _, Family, Metrics};
-use i_cant_believe_its_not_bsn::*;
+use i_cant_believe_its_not_bsn::WithChild;
 use lightyear::prelude::*;
 use rand::{distributions::Alphanumeric, Rng};
+use sickle_ui::{prelude::*, widgets::layout::sized_zone::SizedZoneResizeHandleContainer};
 
 pub mod lib;
 mod one_shot;
@@ -18,13 +18,12 @@ use lib::*;
 use one_shot::*;
 
 use super::*;
-use crate::{trait_bevy::*, ui::*};
+use crate::{tool_tip::lib::ToolTipContent, trait_bevy::*};
 
 pub(super) struct EditorPlugin;
 impl Plugin for EditorPlugin {
 	fn build(&self, app: &mut App) {
-		app.init_resource::<IPAccept>()
-			.init_resource::<EditorParts>()
+		app.init_resource::<EditorParts>()
 			.init_resource::<ConnectTokenRequestTask>()
 			.init_state::<RdioClientState>()
 			.enable_state_scoped_entities::<RdioClientState>()
@@ -40,7 +39,6 @@ impl Plugin for EditorPlugin {
 					change_active_editor_ui,
 					deselect_editor_on_esc,
 					toggle_editor.run_if(input_just_pressed(KeyCode::F8)),
-					accept_public_ip.run_if(on_timer(Duration::from_secs(3))),
 				),
 			)
 			.add_systems(PostUpdate, lock_cursor);
@@ -85,7 +83,15 @@ fn change_active_editor_ui(
 }
 
 fn disable_pick_component(
-	trigger: Trigger<OnAdd, Text>,
+	trigger: Trigger<
+		OnAdd,
+		(
+			Text,
+			SizedZoneResizeHandleContainer,
+			ResizeHandle,
+			ResizeHandles,
+		),
+	>,
 	query_no_pick: Query<Entity, Without<Pickable>>,
 	mut cmd: Commands,
 ) {
@@ -95,479 +101,393 @@ fn disable_pick_component(
 	}
 }
 
-fn editor_ui(mut cmd: Commands, mut font_system: ResMut<CosmicFontSystem>) {
+fn editor_ui(
+	mut cmd: Commands,
+	mut editor_part: ResMut<EditorParts>,
+	mut font_system: ResMut<CosmicFontSystem>,
+) {
 	use EditorPosition::*;
-
-	let mut editored = cmd.spawn((
-		NodeBundle {
-			style: Style {
-				width: Val::Percent(100.0),
-				height: Val::Percent(100.0),
-				flex_direction: FlexDirection::Column,
-				justify_content: JustifyContent::SpaceBetween,
+	cmd.ui_builder(UiRoot).container(
+		(
+			NodeBundle {
+				style: Style {
+					width: Val::Percent(100.0),
+					height: Val::Percent(100.0),
+					flex_direction: FlexDirection::Column,
+					justify_content: JustifyContent::SpaceBetween,
+					..default()
+				},
 				..default()
 			},
-			z_index: ZIndex::Global(-10),
-			..default()
-		},
-		UiMainRootNode,
-		Pickable::IGNORE,
-	));
-
-	// MARK: TOP ROOT
-	editored.with_child((
-		EffectUIBundle::column().no_padding().node(|edit| {
-			let style = &mut edit.style;
-			style.width = Val::Percent(100.0);
-			style.height = Val::Auto;
-			style.flex_grow = 0.0;
-		}),
-		WithChildren([
-			(
-				EffectUIBundle::row().node(|node| node.style.border = UiRect::bottom(Val::Px(2.))),
-				(
-					MenuBar1,
-					WithChild((
-						EffectUIBundle::text().menu(),
-						WithChild(TextBuild::single("Apps")),
-						OwnObserve::new(|trigger: Trigger<RunEffect>, mut cmd: Commands| {
-							cmd.spawn((
-								DropDownAt::bottom(trigger.entity()),
-								WithChildren([
-									(
-										EffectUIBundle::text().item(),
-										WithChild(TextBuild::single("Exit")),
-										OwnObserve::new(
-											|_trigger: Trigger<RunEffect>,
-											 mut write_events: EventWriter<AppExit>| {
-												write_events.send(AppExit::Success);
-											},
-										),
-									),
-									(
-										EffectUIBundle::text()
-											.item()
-											.tip("Paste link in searcher to view Source"),
-										WithChild(TextBuild::single("Github")),
-										OwnObserve::new(|_trigger: Trigger<RunEffect>| {
-											let mut clip_board = Clipboard::new().unwrap();
-											let link = "https://github.com/Chssam/Rainful-Diffolor";
-											clip_board.set_text(link).unwrap();
-										}),
-									),
-								]),
-							));
-						}),
-					)),
-				),
-			),
-			(
-				EffectUIBundle::row().node(|node| node.style.border = UiRect::bottom(Val::Px(2.))),
-				(
-					MenuBar2,
-					WithChild((
-						EffectUIBundle::text()
-							.click()
-							.tip("Just here, it does nothing"),
-						WithChild(TextBuild::single("Holding")),
-						OwnObserve::new(|_trigger: Trigger<RunEffect>| {
-							info!("HELLO BUT NOT HELLO");
-						}),
-					)),
-				),
-			),
-		]),
-	));
-
-	// MARK: MIDDLE ROOT
-	editored.with_child((
-		EffectUIBundle::row()
-			.no_pick()
-			.no_effect()
-			.no_padding()
-			.node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Percent(100.);
-				style.height = Val::Auto;
-				style.min_height = Val::Px(80.);
-				style.flex_grow = 1.;
-			}),
-		// MARK: PANEL LEFT
-		WithChild((
-			PanelLeft,
-			EffectUIBundle::column().no_padding().node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Px(100.);
-				style.min_width = Val::Px(60.);
-				style.max_width = Val::Percent(70.);
-			}),
-			WithChildren([
-				(
-					Maybe::new(PanelLeftTop),
-					EffectUIBundle::column().node(|node| {
-						let style = &mut node.style;
-						style.height = Val::Percent(50.);
-						style.min_height = Val::Percent(30.);
-						style.max_height = Val::Percent(80.);
-					}),
-					Maybe::NONE,
-				),
-				(
-					Maybe::NONE,
-					EffectUIBundle::row_resize(),
-					Maybe::new(On::<Pointer<Drag>>::run(
-						|listener: Listener<Pointer<Drag>>,
-						 editor_part: Res<EditorParts>,
-						 mut query_style: Query<&mut Style>| {
-							let mut style = query_style
-								.get_mut(editor_part.part(&PanelLeftTop))
-								.unwrap();
-							let dragged = listener.delta.y;
-							let (Val::Percent(min_height), Val::Percent(max_height)) =
-								(style.min_height, style.max_height)
-							else {
-								return;
-							};
-							if let Val::Percent(height) = &mut style.height {
-								*height = (*height + dragged).clamp(min_height, max_height);
-							}
-						},
-					)),
-				),
-				(
-					Maybe::new(PanelLeftBottom),
-					EffectUIBundle::column().grow(),
-					Maybe::NONE,
-				),
-			]),
-		)),
-		WithChild((
-			EffectUIBundle::column_resize(),
-			On::<Pointer<Drag>>::run(
-				|listener: Listener<Pointer<Drag>>,
-				 editor_part: Res<EditorParts>,
-				 mut query_style: Query<&mut Style>| {
-					let mut style = query_style.get_mut(editor_part.part(&PanelLeft)).unwrap();
-					let dragged = listener.delta.x;
-					let Val::Px(min_width) = style.min_width else {
-						return;
-					};
-					if let Val::Px(width) = &mut style.width {
-						*width = (*width + dragged).max(min_width);
-					}
-				},
-			),
-			(),
-		)),
-		// MARK: PANEL MIDDLE
-		WithChild((
-			PanelMiddle,
-			EffectUIBundle::column().no_pick().no_effect().node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Auto;
-				style.height = Val::Auto;
-				style.min_width = Val::Px(20.);
-				style.align_items = AlignItems::Stretch;
-				style.justify_content = JustifyContent::FlexEnd;
-				style.flex_grow = 1.;
-			}),
-		)),
-		WithChild((
-			EffectUIBundle::column_resize(),
-			On::<Pointer<Drag>>::run(
-				|listener: Listener<Pointer<Drag>>,
-				 editor_part: Res<EditorParts>,
-				 mut query_style: Query<&mut Style>| {
-					let mut style = query_style.get_mut(editor_part.part(&PanelRight)).unwrap();
-					let dragged = listener.delta.x;
-					let Val::Px(min_width) = style.min_width else {
-						return;
-					};
-					if let Val::Px(width) = &mut style.width {
-						*width = (*width - dragged).max(min_width);
-					}
-				},
-			),
-		)),
-		// MARK: PANEL RIGHT
-		WithChild((
-			PanelRight,
-			EffectUIBundle::column().no_padding().node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Px(120.);
-				style.min_width = Val::Px(120.);
-				style.max_width = Val::Percent(80.);
-			}),
-			WithChildren([
-				(
-					Maybe::new(PanelRightTop),
-					EffectUIBundle::column().node(|node| {
-						let style = &mut node.style;
-						style.height = Val::Percent(50.);
-						style.min_height = Val::Percent(20.);
-						style.max_height = Val::Percent(70.);
-					}),
-					Maybe::NONE,
-				),
-				(
-					Maybe::NONE,
-					EffectUIBundle::row_resize(),
-					Maybe::new(On::<Pointer<Drag>>::run(
-						|listener: Listener<Pointer<Drag>>,
-						 editor_part: Res<EditorParts>,
-						 mut query_style: Query<&mut Style>| {
-							let mut style = query_style
-								.get_mut(editor_part.part(&PanelRightTop))
-								.unwrap();
-							let dragged = listener.delta.y;
-							let (Val::Percent(min_height), Val::Percent(max_height)) =
-								(style.min_height, style.max_height)
-							else {
-								return;
-							};
-							if let Val::Percent(height) = &mut style.height {
-								*height = (*height + dragged).clamp(min_height, max_height);
-							}
-						},
-					)),
-				),
-				(
-					Maybe::new(PanelRightBottom),
-					EffectUIBundle::column().grow(),
-					Maybe::NONE,
-				),
-			]),
-			(),
-		)),
-	));
-
-	editored.with_child((
-		EffectUIBundle::row_resize(),
-		On::<Pointer<Drag>>::run(
-			|listener: Listener<Pointer<Drag>>,
-			 editor_part: Res<EditorParts>,
-			 mut query_style: Query<&mut Style>| {
-				let mut style = query_style.get_mut(editor_part.part(&PanelBottom)).unwrap();
-				let dragged = listener.delta.y;
-				let Val::Px(min_height) = style.min_height else {
-					return;
-				};
-				if let Val::Px(height) = &mut style.height {
-					*height = (*height - dragged).max(min_height);
-				}
-			},
+			UiMainRootNode,
+			Pickable::IGNORE,
 		),
-	));
+		|container| {
+			// MARK: First Root
+			container.column(|column| {
+				column
+					.style()
+					.height(Val::Auto)
+					.width(Val::Percent(100.0))
+					.flex_grow(0.0)
+					.background_color(Srgba::BEVY_BLACK);
 
-	// MARK: BOTTOM ROOT
-	editored.with_child((
-		EffectUIBundle::row().no_padding().node(|node| {
-			let style = &mut node.style;
-			style.min_height = Val::Px(80.);
-			style.height = Val::Px(150.);
-		}),
-		PanelBottom,
-		WithChild((
-			PanelBottomLeft,
-			EffectUIBundle::column().full().node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Percent(50.);
-				style.min_width = Val::Px(120.);
-				style.max_width = Val::Percent(80.);
-			}),
-			WithChild((
-				EffectUIBundle::row()
-					.no_effect()
-					.node(|node| node.background_color = Color::BLACK.into()),
-				AsContainer,
-			)),
-		)),
-		WithChild((
-			EffectUIBundle::column_resize(),
-			On::<Pointer<Drag>>::run(
-				|listener: Listener<Pointer<Drag>>,
-				 editor_part: Res<EditorParts>,
-				 mut query_style: Query<&mut Style>| {
-					let mut style = query_style
-						.get_mut(editor_part.part(&PanelBottomLeft))
-						.unwrap();
-					let dragged = listener.delta.x;
-					if let Val::Percent(width) = &mut style.width {
-						*width = (*width + dragged);
-					}
-				},
-			),
-		)),
-		WithChild((
-			EffectUIBundle::column().full(),
-			PanelBottomRight,
-			WithChild((
-				EffectUIBundle::row()
-					.no_effect()
-					.node(|node| node.background_color = Color::BLACK.into()),
-				AsContainer,
-			)),
-			WithChild((
-				EffectUIBundle::column(),
-				NotTabYet::new("Connections"),
-				WithChild((
-					EffectUIBundle::text().menu(),
-					WithChild(TextBuild::single("Options")),
-					OwnObserve::new(|trigger: Trigger<RunEffect>, mut cmd: Commands| {
-						cmd.spawn((
-							DropDownAt::bottom(trigger.entity()),
-							WithChildren([
-								(
-									EffectUIBundle::text().item(),
-									WithChild(TextBuild::single("Private")),
-									OwnObserve::new(select_ip_self),
-								),
-								(
-									EffectUIBundle::text().item(),
-									WithChild(TextBuild::single("Local")),
-									OwnObserve::new(select_ip_local),
-								),
-								(
-									EffectUIBundle::text().item(),
-									WithChild(TextBuild::single("Public")),
-									OwnObserve::new(select_ip_public),
-								),
-								(
-									EffectUIBundle::text().item(),
-									WithChild(TextBuild::single("Client Toggle")),
-									OwnObserve::new(client_system),
-								),
-								(
-									EffectUIBundle::text().item(),
-									WithChild(TextBuild::single("Server Toggle")),
-									OwnObserve::new(server_system),
-								),
-							]),
-						));
-					}),
-				)),
-				{
-					let name = rand::thread_rng()
-						.sample_iter(&Alphanumeric)
-						.take(8)
-						.map(char::from)
-						.collect::<String>();
-					input_node("Name", &name, NameInput, &mut font_system)
-				},
-				input_node(
-					"IP",
-					&CLIENT_ADDR.ip().to_string(),
-					ConnectionIP,
-					&mut font_system,
-				),
-				input_node(
-					"Client Port",
-					&CLIENT_ADDR.port().to_string(),
-					ClientPort,
-					&mut font_system,
-				),
-				input_node(
-					"Server Port",
-					&SERVER_ADDR.port().to_string(),
-					ServerPort,
-					&mut font_system,
-				),
-			)),
-			WithChild((
-				EffectUIBundle::column(),
-				NotTabYet::new("Messages"),
-				WithChild({
-					let font_size = FontTypeSize::NAME;
-					let y = font_size + 10.0;
-					let attrs = Attrs::new()
-						.family(Family::SansSerif)
-						.color(Srgba::BEVY_BLACK.to_cosmic());
+				column.menu_bar(|menu_bar| {
+					editor_part.insert(MenuBar1, menu_bar.id());
+					menu_bar.menu(
+						MenuConfig {
+							name: "Apps".to_owned(),
+							..default()
+						},
+						|menu| {
+							menu.menu_item(MenuItemConfig {
+								name: "Exit".to_owned(),
+								..default()
+							})
+							.insert(On::<Pointer<Click>>::run(
+								|mut write_events: EventWriter<AppExit>| {
+									write_events.send(AppExit::Success);
+								},
+							));
 
-					(
-						EffectUIBundle::row(),
-						WithChild((
-							EffectUIBundle::text().only_pick().no_effect().node(|node| {
-								let style = &mut node.style;
-								style.width = Val::Percent(100.);
-								style.height = Val::Px(y);
-								style.border = UiRect::all(Val::Px(2.));
-								style.padding = UiRect::all(Val::Px(5.));
-								node.border_radius = BorderRadius::all(Val::Px(3.));
-								node.border_color = Srgba::BEVY_BLACK.into();
-								node.background_color = Srgba::BEVY_WHITE.into();
-							}),
-							UiImage::default(),
-							OwnCosmicEdit::new(
-								CosmicEditBundle {
-									buffer: CosmicBuffer::new(
-										&mut font_system,
-										Metrics::new(font_size, font_size),
-									)
-									.with_text(&mut font_system, "", attrs),
-									fill_color: CosmicBackgroundColor(Color::NONE),
-									sprite_bundle: SpriteBundle {
-										visibility: Visibility::Hidden,
+							menu.menu_item(MenuItemConfig {
+								name: "Github".to_owned(),
+								..default()
+							})
+							.insert((
+								ToolTipContent::new("Paste link in searcher to view Source"),
+								On::<Pointer<Click>>::run(|| {
+									let mut clip_board = Clipboard::new().unwrap();
+									let link = "https://github.com/Chssam/Rainful-Diffolor";
+									clip_board.set_text(link).unwrap();
+								}),
+							));
+
+							menu.menu_item(MenuItemConfig {
+								name: "About".to_owned(),
+								..default()
+							})
+							.insert(ToolTipContent::new("This button does nothing"));
+						},
+					);
+				});
+			});
+
+			// MARK: Second Root
+			container.column(|column| {
+				column
+					.style()
+					.height(Val::Auto)
+					.width(Val::Percent(100.0))
+					.flex_grow(0.0)
+					.background_color(Srgba::BEVY_BLACK);
+
+				column.menu_bar(|menu_bar| {
+					editor_part.insert(MenuBar2, menu_bar.id());
+				});
+			});
+
+			let dock_zone_size = 100.0;
+			let dock_size = dock_zone_size / 1.5;
+			let do_size = dock_size / 1.5;
+
+			// MARK: Middle ROOT
+			container.sized_zone(
+				SizedZoneConfig {
+					size: dock_zone_size * 4.0,
+					min_size: dock_zone_size,
+				},
+				|sized| {
+					sized
+						.insert(Pickable::IGNORE)
+						.style()
+						.flex_direction(FlexDirection::Row)
+						.height(Val::Auto)
+						.width(Val::Percent(100.0))
+						.background_color(Srgba::NONE.into())
+						.lock_attribute(LockableStyleAttribute::BackgroundColor);
+
+					// MARK: LEFT
+					sized.sized_zone(
+						SizedZoneConfig {
+							size: dock_size,
+							min_size: dock_size,
+						},
+						|sized| {
+							editor_part.insert(PanelLeft, sized.id());
+							sized.style().overflow(Overflow::clip());
+							sized.sized_zone(
+								SizedZoneConfig {
+									size: do_size,
+									min_size: do_size,
+								},
+								|sized| {
+									editor_part.insert(PanelLeftTop, sized.id());
+								},
+							);
+							sized.docking_zone(
+								SizedZoneConfig {
+									size: do_size,
+									min_size: do_size,
+								},
+								false,
+								|dock| {
+									editor_part.insert(PanelLeftBottom, dock.id());
+								},
+							);
+						},
+					);
+
+					// MARK: Active World View Zone (MIDDLE)
+					sized.sized_zone(
+						SizedZoneConfig {
+							size: 100.0,
+							min_size: 10.0,
+						},
+						|sized| {
+							editor_part.insert(PanelMiddle, sized.id());
+							sized
+								.insert(Pickable::IGNORE)
+								.style()
+								.overflow(Overflow::clip())
+								.justify_content(JustifyContent::FlexEnd)
+								.background_color(Color::NONE)
+								.lock_attribute(LockableStyleAttribute::BackgroundColor);
+						},
+					);
+
+					// MARK: Option (RIGHT)
+					sized.sized_zone(
+						SizedZoneConfig {
+							size: dock_size,
+							min_size: dock_size,
+						},
+						|sized| {
+							editor_part.insert(PanelRight, sized.id());
+							sized.style().overflow(Overflow::clip());
+
+							sized.docking_zone(
+								SizedZoneConfig {
+									size: do_size,
+									min_size: do_size,
+								},
+								false,
+								|dock| {
+									editor_part.insert(PanelRightTop, dock.id());
+								},
+							);
+							sized.docking_zone(
+								SizedZoneConfig {
+									size: do_size,
+									min_size: do_size,
+								},
+								false,
+								|dock| {
+									editor_part.insert(PanelRightBottom, dock.id());
+								},
+							);
+						},
+					);
+				},
+			);
+
+			// MARK: Bottom Panel
+			container.sized_zone(
+				SizedZoneConfig {
+					size: dock_zone_size,
+					min_size: dock_zone_size,
+				},
+				|sized| {
+					editor_part.insert(PanelBottom, sized.id());
+					sized
+						.style()
+						.width(Val::Percent(100.0))
+						.background_color(Srgba::BEVY_BLACK);
+
+					sized.docking_zone(
+						SizedZoneConfig {
+							size: do_size,
+							min_size: do_size,
+						},
+						false,
+						|dock| {
+							editor_part.insert(PanelBottomLeft, dock.id());
+						},
+					);
+					sized.docking_zone(
+						SizedZoneConfig {
+							size: do_size,
+							min_size: do_size,
+						},
+						false,
+						|dock| {
+							editor_part.insert(PanelBottomRight, dock.id());
+
+							dock.add_tab("Connection".to_owned(), |tab| {
+								let ip = CLIENT_ADDR.ip();
+								let client_port = CLIENT_ADDR.port();
+								let server_port = SERVER_ADDR.port();
+								tab.menu(
+									MenuConfig {
+										name: "Options".to_owned(),
 										..default()
 									},
-									max_chars: MaxChars(255),
-									max_lines: MaxLines(1),
-									text_position: CosmicTextAlign::Left { padding: 2 },
-									x_offset: XOffset {
-										left: -5.0,
-										width: 1.0,
+									|menu| {
+										menu.menu_item(MenuItemConfig {
+											name: "Private".to_owned(),
+											..default()
+										})
+										.insert(On::<Pointer<Click>>::run(select_ip_self));
+										menu.menu_item(MenuItemConfig {
+											name: "Local".to_owned(),
+											..default()
+										})
+										.insert(On::<Pointer<Click>>::run(select_ip_local));
+										menu.menu_item(MenuItemConfig {
+											name: "Client Toggle".to_owned(),
+											..default()
+										})
+										.insert(On::<Pointer<Click>>::run(client_system));
+										menu.menu_item(MenuItemConfig {
+											name: "Server Toggle".to_owned(),
+											..default()
+										})
+										.insert(On::<Pointer<Click>>::run(server_system));
 									},
-									..default()
-								},
-								(
-									Placeholder::new(
-										"<Chat>",
-										Attrs::new()
-											.family(Family::SansSerif)
-											.color(Srgba::BEVY_WHITE.darker(0.3).to_cosmic()),
-									),
-									TypeChat,
-								),
-							),
-						)),
-					)
-				}),
-				WithChild((
-					EffectUIBundle::column().full(),
-					WithChild((EffectUIBundle::column().scroll_full(), ChatMessageHolder)),
-				)),
-			)),
-		)),
-	));
+								);
+								let name = rand::thread_rng()
+									.sample_iter(&Alphanumeric)
+									.take(8)
+									.map(char::from)
+									.collect();
+								input_node(
+									tab,
+									"Name".to_owned(),
+									name,
+									NameInput,
+									&mut font_system,
+								);
+								input_node(
+									tab,
+									"IP".to_owned(),
+									ip.to_string(),
+									ConnectionIP,
+									&mut font_system,
+								);
+								input_node(
+									tab,
+									"Client Port".to_owned(),
+									client_port.to_string(),
+									ClientPort,
+									&mut font_system,
+								);
+								input_node(
+									tab,
+									"Server Port".to_owned(),
+									server_port.to_string(),
+									ServerPort,
+									&mut font_system,
+								);
+							});
+
+							dock.add_tab("Messages".to_owned(), |tab| {
+								tab.style().overflow(Overflow::clip());
+								let font_size = FontTypeSize::NAME;
+								let y = font_size + 4.0;
+								let attrs = Attrs::new()
+									.family(Family::SansSerif)
+									.color(Srgba::BEVY_BLACK.to_cosmic());
+								let target = tab
+									.spawn((
+										CosmicEditBundle {
+											buffer: CosmicBuffer::new(
+												&mut font_system,
+												Metrics::new(font_size, font_size),
+											)
+											.with_text(&mut font_system, "", attrs),
+											fill_color: CosmicBackgroundColor(Color::NONE),
+											sprite_bundle: SpriteBundle {
+												visibility: Visibility::Hidden,
+												..default()
+											},
+											max_chars: MaxChars(255),
+											max_lines: MaxLines(1),
+											text_position: CosmicTextAlign::Left { padding: 2 },
+											x_offset: XOffset {
+												left: -5.0,
+												width: 1.0,
+											},
+											..default()
+										},
+										Placeholder::new(
+											"<Chat>",
+											Attrs::new()
+												.family(Family::SansSerif)
+												.color(Srgba::BEVY_WHITE.darker(0.3).to_cosmic()),
+										),
+										TypeChat,
+									))
+									.id();
+								tab.spawn((
+									ButtonBundle {
+										style: Style {
+											width: Val::Percent(100.0),
+											height: Val::Px(y + 10.0),
+											border: UiRect::all(Val::Px(2.5)),
+											padding: UiRect::all(Val::Px(5.0)),
+											overflow: Overflow::clip(),
+											..default()
+										},
+										border_color: Srgba::BEVY_BLACK.into(),
+										background_color: Srgba::BEVY_WHITE.into(),
+										..default()
+									},
+									CosmicSource(target),
+								));
+
+								tab.scroll_view(Some(ScrollAxis::Vertical), |view| {
+									view.insert(ChatMessageHolder)
+										.style()
+										.overflow(Overflow::clip())
+										.border(UiRect::all(Val::Px(2.5)))
+										.border_color(Srgba::BEVY_BLACK);
+
+									view.spawn(TextBundle::from_section(
+										"Beginning Of Message".to_owned(),
+										TextStyle {
+											font_size: FontTypeSize::NAME,
+											color: Srgba::BEVY_WHITE,
+											..default()
+										},
+									));
+								});
+							});
+						},
+					);
+				},
+			);
+		},
+	);
 }
 
-fn input_node<T: Bundle>(
-	label: &str,
-	value: &str,
+fn input_node<T: Component>(
+	tab: &mut UiBuilder<Entity>,
+	label: String,
+	value: String,
 	comp: T,
 	font_system: &mut CosmicFontSystem,
-) -> impl Bundle {
-	let font_size = FontTypeSize::NAME;
-	let y = font_size + 10.0;
-	let attrs = Attrs::new()
-		.family(Family::SansSerif)
-		.color(Srgba::BEVY_BLACK.to_cosmic());
-
-	WithChild((
-		EffectUIBundle::row(),
-		WithChild((EffectUIBundle::text(), TextBuild::single(&label))),
-		WithChild((
-			EffectUIBundle::text().only_pick().no_effect().node(|node| {
-				let style = &mut node.style;
-				style.width = Val::Percent(100.);
-				style.height = Val::Px(y);
-				style.border = UiRect::all(Val::Px(2.));
-				style.padding = UiRect::all(Val::Px(5.));
-				node.border_radius = BorderRadius::all(Val::Px(3.));
-				node.border_color = Srgba::BEVY_BLACK.into();
-				node.background_color = Srgba::BEVY_WHITE.into();
-			}),
-			UiImage::default(),
-			OwnCosmicEdit::new(
+) {
+	tab.row(|row| {
+		let font_size = FontTypeSize::NAME;
+		let y = font_size + 4.0;
+		let attrs = Attrs::new()
+			.family(Family::SansSerif)
+			.color(Srgba::BEVY_BLACK.to_cosmic());
+		row.label(LabelConfig { label, ..default() })
+			.style()
+			.padding(UiRect::horizontal(Val::Px(4.0)));
+		let target = row
+			.spawn((
 				CosmicEditBundle {
 					buffer: CosmicBuffer::new(font_system, Metrics::new(font_size, font_size))
 						.with_text(font_system, &value, attrs),
@@ -586,9 +506,25 @@ fn input_node<T: Bundle>(
 					..default()
 				},
 				comp,
-			),
-		)),
-	))
+			))
+			.id();
+		row.spawn((
+			ButtonBundle {
+				style: Style {
+					width: Val::Percent(100.0),
+					height: Val::Px(y + 8.0),
+					border: UiRect::all(Val::Px(2.5)),
+					padding: UiRect::all(Val::Px(5.0)),
+					overflow: Overflow::clip(),
+					..default()
+				},
+				border_color: Srgba::BEVY_BLACK.into(),
+				background_color: Srgba::BEVY_WHITE.into(),
+				..default()
+			},
+			CosmicSource(target),
+		));
+	});
 }
 
 fn receive_display_msg(
@@ -602,7 +538,14 @@ fn receive_display_msg(
 	let new_msg = trigger.event();
 
 	cmd.entity(ent_holder)
-		.insert(WithChild(TextBuild::single(new_msg.trim())));
+		.insert(WithChild(TextBundle::from_section(
+			new_msg.trim().to_owned(),
+			TextStyle {
+				font_size: FontTypeSize::NAME,
+				color: Srgba::BEVY_WHITE,
+				..default()
+			},
+		)));
 	if let Some(child) = op_child {
 		if child.len() > 100 {
 			let despawn_first = child.first().unwrap();
@@ -675,39 +618,32 @@ fn handle_local_message(
 }
 
 fn lock_cursor(
-	mut on_drag: EventReader<Pointer<DragStart>>,
-	mut on_drag_leave: EventReader<Pointer<DragEnd>>,
-	mut query_window: Query<&mut Window, With<PrimaryWindow>>,
 	mut lock_on_ui: Local<Option<(Entity, Vec2)>>,
-	query_ui: Query<(), With<LockableOnUI>>,
+	mut query_window: Query<&mut Window, With<PrimaryWindow>>,
+	query_ui: Query<(Entity, Ref<Interaction>), With<LockableOnUI>>,
 ) {
 	let Ok(mut window) = query_window.get_single_mut() else {
 		return;
 	};
-
-	if on_drag_leave
-		.read()
-		.any(|pointed| lock_on_ui.is_some_and(|(ent, _)| ent == pointed.target()))
-	{
-		lock_on_ui.take();
+	if let Some((ent, prev_pos_cursor)) = *lock_on_ui {
+		let (_, inter) = query_ui.get(ent).unwrap();
+		if *inter == Interaction::Pressed {
+			let prev_pos = prev_pos_cursor.xy();
+			window.cursor.grab_mode = CursorGrabMode::Confined;
+			window.set_cursor_position(Some(prev_pos));
+			return;
+		} else {
+			window.cursor.grab_mode = CursorGrabMode::None;
+			*lock_on_ui = None;
+		}
 	}
-
-	if let Some((_, prev_pos_cursor)) = *lock_on_ui {
-		let prev_pos = prev_pos_cursor.xy();
-		window.cursor.grab_mode = CursorGrabMode::Confined;
-		window.set_cursor_position(Some(prev_pos));
-	} else {
-		window.cursor.grab_mode = CursorGrabMode::None;
-		*lock_on_ui = None;
-	}
-
-	if let Some(pointed) = on_drag
-		.read()
-		.find(|pointed| query_ui.contains(pointed.target()))
-	{
+	query_ui.iter().for_each(|(ent, inter)| {
+		if *inter != Interaction::Pressed && !inter.is_changed() {
+			return;
+		}
 		let Some(cur_pos) = window.cursor_position() else {
 			return;
 		};
-		*lock_on_ui = Some((pointed.target(), cur_pos));
-	}
+		*lock_on_ui = Some((ent, cur_pos));
+	});
 }

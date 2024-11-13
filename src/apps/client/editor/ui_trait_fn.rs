@@ -1,20 +1,37 @@
 use bevy::prelude::*;
+use bevy_mod_picking::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use super::*;
-
-pub fn instant_action<T: Actionlike + Copy>(
-	target: Entity,
-	action: T,
-) -> OwnObserve<RunEffect, ()> {
-	OwnObserve::new(
-		move |_trigger: Trigger<RunEffect>, mut query_target: Query<&mut ActionState<T>>| {
+pub fn instant_action<T: Actionlike + Copy>(target: Entity, action: T) -> impl Bundle {
+	(
+		On::<Pointer<Click>>::run(move |mut query_target: Query<&mut ActionState<T>>| {
+			let Ok(mut action_state) = query_target.get_mut(target) else {
+				error!("Targeting Non Exist Entity");
+				return;
+			};
+			action_state.reset(&action);
+			action_state.press(&action);
+		}),
+		On::<Pointer<Out>>::run(move |mut query_target: Query<&mut ActionState<T>>| {
 			let Ok(mut action_state) = query_target.get_mut(target) else {
 				error!("Targeting Non Exist Entity");
 				return;
 			};
 			action_state.release(&action);
-			action_state.press(&action);
-		},
+		}),
 	)
+}
+
+pub fn toggle_action<T: Actionlike + Copy>(target: Entity, action: T) -> On<Pointer<Click>> {
+	On::<Pointer<Click>>::run(move |mut query_target: Query<&mut ActionState<T>>| {
+		let Ok(mut action_state) = query_target.get_mut(target) else {
+			error!("Targeting Non Exist Entity");
+			return;
+		};
+		if action_state.pressed(&action) {
+			action_state.release(&action);
+		} else {
+			action_state.press(&action);
+		}
+	})
 }

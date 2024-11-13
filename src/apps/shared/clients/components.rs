@@ -273,20 +273,6 @@ pub enum VerifyAction {
 	#[reflect(@ToolTip("Apply color to selected Path"))]
 	PathApplyColor,
 
-	#[reflect(@ToolPath("stroke-cap-butt.png"))]
-	StrokeCapButt,
-	#[reflect(@ToolPath("stroke-cap-round.png"))]
-	StrokeCapRound,
-	#[reflect(@ToolPath("stroke-cap-square.png"))]
-	StrokeCapSquare,
-
-	#[reflect(@ToolPath("stroke-join-bevel.png"))]
-	StrokeJoinBevel,
-	#[reflect(@ToolPath("stroke-join-miter.png"))]
-	StrokeJoinMiter,
-	#[reflect(@ToolPath("stroke-join-round.png"))]
-	StrokeJoinRound,
-
 	#[reflect(@ToolTip("Undo objects"))]
 	Undo,
 	#[reflect(@ToolTip("Redo objects"))]

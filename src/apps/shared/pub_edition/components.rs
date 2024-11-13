@@ -9,7 +9,9 @@ use i_cant_believe_its_not_bsn::Maybe;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::trait_bevy::ToolPath;
+use crate::{apps::shared::MainChannel, trait_bevy::ToolPath};
+
+use super::ObjectActionToServer;
 
 #[derive(Component, Deref, DerefMut)]
 pub struct SaveLocation(pub PathBuf);
@@ -153,7 +155,6 @@ impl Default for ObjectOpacity {
 #[allow(clippy::enum_variant_names)]
 #[derive(Event, Reflect, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ObjectActionNet {
-	#[reflect(@ToolPath("gimp-tool-move.png"))]
 	LockMove,
 	LockPixel,
 	LockAlpha,
@@ -167,4 +168,22 @@ pub enum ObjectActionNet {
 pub enum ObjectBirNet {
 	Undo,
 	Redo,
+}
+
+impl ObjectActionNet {
+	pub fn target(self, obj_ent: Entity) -> On<Pointer<Click>> {
+		On::<Pointer<Click>>::run(move |mut client: ResMut<ClientConnectionManager>| {
+			client
+				.send_message_to_target::<MainChannel, ObjectActionToServer>(
+					&mut ObjectActionToServer {
+						obj_ent,
+						action: self,
+					},
+					NetworkTarget::All,
+				)
+				.unwrap_or_else(|e| {
+					error!("Fail to send message: {:?}", e);
+				});
+		})
+	}
 }

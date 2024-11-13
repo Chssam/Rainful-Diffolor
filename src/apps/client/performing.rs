@@ -12,6 +12,7 @@ use bevy::{
 use bevy_cosmic_edit::{BufferExtras, CosmicBuffer};
 use bevy_mod_picking::prelude::*;
 use client::ConnectionManager;
+use editor::new_brush_collection;
 use image::*;
 use imageops::overlay;
 use leafwing_input_manager::{
@@ -82,6 +83,7 @@ pub(super) fn setup_client_resources(world: &mut World) {
 	let all_client_observe = [
 		world.observe(handle_connection).id(),
 		world.observe(unpickable_predicted).id(),
+		world.observe(new_brush_collection).id(),
 		world.observe(insert_as_objects).id(),
 		// world.observe(set_selected_change).id(),
 	];

@@ -1,17 +1,13 @@
-use bevy::{
-	ecs::{
-		component::{ComponentHooks, StorageType},
-		system::SystemParam,
-	},
-	prelude::*,
-	tasks::Task,
-};
-use bevy_cosmic_edit::{CosmicBuffer, CosmicEditBundle, CosmicFontSystem, CosmicSource};
+use bevy::{ecs::system::SystemParam, prelude::*, tasks::Task};
+use bevy_cosmic_edit::{CosmicBuffer, CosmicFontSystem};
 use lightyear::prelude::*;
+use sickle_ui::{
+	prelude::*,
+	widgets::{layout::tab_container::TabContainer, menus::menu_bar::MenuBar},
+};
 use std::{
 	collections::HashMap,
 	net::{IpAddr, Ipv4Addr, SocketAddr},
-	sync::{Arc, RwLock},
 };
 
 pub const SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 6000);
@@ -34,10 +30,10 @@ pub(super) struct ChatMessageHolder;
 pub(super) struct TypeChat;
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct EditorParts(HashMap<EditorPosition, Entity>);
+pub(super) struct EditorParts(HashMap<EditorPosition, Entity>);
 
 impl EditorParts {
-	pub fn part(&self, pos: &EditorPosition) -> Entity {
+	fn part(&self, pos: &EditorPosition) -> Entity {
 		*self.get(pos).unwrap()
 	}
 }
@@ -45,7 +41,65 @@ impl EditorParts {
 #[derive(SystemParam)]
 pub struct EditorRdio<'w, 's> {
 	pub cmd: Commands<'w, 's>,
-	pub editor_part: Res<'w, EditorParts>,
+	editor_part: Res<'w, EditorParts>,
+	query_tab_container: Query<'w, 's, &'static TabContainer>,
+}
+
+#[allow(unused)]
+impl<'w, 's> EditorRdio<'w, 's> {
+	pub fn bar_1(&mut self) -> UiBuilder<(Entity, MenuBar)> {
+		let ent = self.editor_part.part(&EditorPosition::MenuBar1);
+		self.cmd.ui_builder((ent, MenuBar))
+	}
+	pub fn bar_2(&mut self) -> UiBuilder<(Entity, MenuBar)> {
+		let ent = self.editor_part.part(&EditorPosition::MenuBar2);
+		self.cmd.ui_builder((ent, MenuBar))
+	}
+	pub fn middle_panel(&mut self) -> UiBuilder<Entity> {
+		let ent = self.editor_part.part(&EditorPosition::PanelMiddle);
+		self.cmd.ui_builder(ent)
+	}
+	pub fn left_panel(&mut self) -> UiBuilder<Entity> {
+		let ent = self.editor_part.part(&EditorPosition::PanelLeft);
+		self.cmd.ui_builder(ent)
+	}
+	pub fn left_top_panel(&mut self) -> UiBuilder<Entity> {
+		let ent = self.editor_part.part(&EditorPosition::PanelLeftTop);
+		self.cmd.ui_builder(ent)
+	}
+	pub fn left_bottom_panel(&mut self) -> UiBuilder<(Entity, TabContainer)> {
+		let ent = self.editor_part.part(&EditorPosition::PanelLeftBottom);
+		let tab_container = self.query_tab_container.get(ent).unwrap();
+		self.cmd.ui_builder((ent, *tab_container))
+	}
+	pub fn right_panel(&mut self) -> UiBuilder<Entity> {
+		let ent = self.editor_part.part(&EditorPosition::PanelRight);
+		self.cmd.ui_builder(ent)
+	}
+	pub fn right_top_panel(&mut self) -> UiBuilder<(Entity, TabContainer)> {
+		let ent = self.editor_part.part(&EditorPosition::PanelRightTop);
+		let tab_container = self.query_tab_container.get(ent).unwrap();
+		self.cmd.ui_builder((ent, *tab_container))
+	}
+	pub fn right_bottom_panel(&mut self) -> UiBuilder<(Entity, TabContainer)> {
+		let ent = self.editor_part.part(&EditorPosition::PanelRightBottom);
+		let tab_container = self.query_tab_container.get(ent).unwrap();
+		self.cmd.ui_builder((ent, *tab_container))
+	}
+	pub fn bottom_panel(&mut self) -> UiBuilder<Entity> {
+		let ent = self.editor_part.part(&EditorPosition::PanelBottom);
+		self.cmd.ui_builder(ent)
+	}
+	pub fn bottom_left_panel(&mut self) -> UiBuilder<(Entity, TabContainer)> {
+		let ent = self.editor_part.part(&EditorPosition::PanelBottomLeft);
+		let tab_container = self.query_tab_container.get(ent).unwrap();
+		self.cmd.ui_builder((ent, *tab_container))
+	}
+	pub fn bottom_right_panel(&mut self) -> UiBuilder<(Entity, TabContainer)> {
+		let ent = self.editor_part.part(&EditorPosition::PanelBottomRight);
+		let tab_container = self.query_tab_container.get(ent).unwrap();
+		self.cmd.ui_builder((ent, *tab_container))
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,21 +116,6 @@ pub enum EditorPosition {
 	PanelBottom,
 	PanelBottomLeft,
 	PanelBottomRight,
-}
-
-impl Component for EditorPosition {
-	const STORAGE_TYPE: StorageType = StorageType::Table;
-	fn register_component_hooks(_hooks: &mut ComponentHooks) {
-		_hooks.on_add(|mut world, entity, _component_id| {
-			let ent_pos = world
-				.entity(entity)
-				.get::<EditorPosition>()
-				.unwrap()
-				.clone();
-			let mut parts = world.resource_mut::<EditorParts>();
-			parts.insert(ent_pos, entity);
-		});
-	}
 }
 
 #[derive(Resource)]
@@ -125,47 +164,5 @@ impl SetTextOnly for CosmicBuffer {
 		let buffed = self.0.lines.first().unwrap();
 		let attrs_list = buffed.attrs_list().clone();
 		self.set_text(font_system, text, attrs_list.defaults());
-	}
-}
-
-pub struct OwnCosmicEdit<T: Bundle>(Option<(CosmicEditBundle, T)>);
-
-impl<T: Bundle> OwnCosmicEdit<T> {
-	pub fn new(cosmic: CosmicEditBundle, comp: T) -> Self {
-		Self(Some((cosmic, comp)))
-	}
-}
-
-impl<T: Bundle> Component for OwnCosmicEdit<T> {
-	const STORAGE_TYPE: StorageType = StorageType::SparseSet;
-	fn register_component_hooks(_hooks: &mut ComponentHooks) {
-		_hooks.on_add(|mut world, entity, _component_id| {
-			let cosmiced = std::mem::take(
-				&mut world
-					.entity_mut(entity)
-					.get_mut::<OwnCosmicEdit<T>>()
-					.unwrap()
-					.0,
-			)
-			.unwrap();
-			let target = world.commands().spawn(cosmiced).id();
-			world
-				.commands()
-				.entity(entity)
-				.insert(CosmicSource(target))
-				.remove::<OwnCosmicEdit<T>>();
-		});
-	}
-}
-
-#[derive(Resource, Clone)]
-pub(super) struct IPAccept(
-	pub(super) Arc<RwLock<Option<IpAddr>>>,
-	pub(super) Option<IpAddr>,
-);
-
-impl Default for IPAccept {
-	fn default() -> Self {
-		Self(Arc::new(RwLock::new(None)), None)
 	}
 }

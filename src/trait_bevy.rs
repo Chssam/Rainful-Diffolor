@@ -1,9 +1,5 @@
 use bevy::{
 	color::palettes::*,
-	ecs::{
-		component::{ComponentHooks, StorageType},
-		system::EntityCommands,
-	},
 	prelude::*,
 	reflect::{ReflectRef, TypeInfo},
 	render::{
@@ -11,7 +7,6 @@ use bevy::{
 		texture::ImageSampler,
 	},
 };
-use i_cant_believe_its_not_bsn::*;
 
 pub struct FontTypeSize;
 
@@ -77,11 +72,11 @@ impl ApplyDiff for Color {
 #[derive(Reflect)]
 pub struct ToolPath(pub &'static str);
 
-pub trait ImageIconPath {
+pub trait ImagePathBuild {
 	fn path_img(&self) -> &str;
 }
 
-impl ImageIconPath for dyn Reflect {
+impl ImagePathBuild for dyn Reflect {
 	fn path_img(&self) -> &str {
 		match self.get_represented_type_info().unwrap() {
 			TypeInfo::Struct(type_info) => type_info.get_attribute::<ToolPath>().map(|v| v.0),
@@ -97,71 +92,6 @@ impl ImageIconPath for dyn Reflect {
 			_ => None,
 		}
 		.unwrap_or("Marks.png")
-	}
-}
-
-pub trait ImproveEntityCommands {
-	fn with_child<B: Bundle>(&mut self, bundle: B) -> &mut Self;
-	fn with_childs<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
-		&mut self,
-		bundle: I,
-	) -> &mut Self;
-}
-
-impl<'a> ImproveEntityCommands for EntityCommands<'a> {
-	fn with_child<B: Bundle>(&mut self, bundle: B) -> &mut Self {
-		self.insert(WithChild(bundle))
-	}
-	fn with_childs<B: Bundle, I: IntoIterator<Item = B> + Send + Sync + 'static>(
-		&mut self,
-		bundle: I,
-	) -> &mut Self {
-		self.insert(WithChildren(bundle))
-	}
-}
-
-#[derive(Clone, Default)]
-pub enum DirectImage {
-	#[default]
-	None,
-	Path(String),
-	Image {
-		data: Vec<u8>,
-		size: UVec2,
-	},
-}
-
-impl Component for DirectImage {
-	const STORAGE_TYPE: StorageType = StorageType::SparseSet;
-	fn register_component_hooks(_hooks: &mut ComponentHooks) {
-		_hooks.on_insert(|mut world, entity, _component_id| {
-			let handle = match std::mem::take(
-				&mut *world.entity_mut(entity).get_mut::<DirectImage>().unwrap(),
-			) {
-				DirectImage::None => return,
-				DirectImage::Path(get_path) => world.resource::<AssetServer>().load(get_path),
-				DirectImage::Image { data, size } => {
-					let mut new_img = Image::new(
-						Extent3d {
-							width: size.x,
-							height: size.y,
-							..default()
-						},
-						TextureDimension::D2,
-						data,
-						TextureFormat::Rgba8UnormSrgb,
-						default(),
-					);
-					new_img.sampler = ImageSampler::nearest();
-					world.resource_mut::<Assets<Image>>().add(new_img)
-				},
-			};
-			world
-				.commands()
-				.entity(entity)
-				.insert(UiImage::new(handle))
-				.remove::<DirectImage>();
-		});
 	}
 }
 

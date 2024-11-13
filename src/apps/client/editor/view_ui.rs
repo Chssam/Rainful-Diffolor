@@ -1,5 +1,4 @@
-use aery::prelude::*;
-use editor::{ApplyDiff, DisplayColor, IconVisiblity, ObjectRelationUI};
+use editor::DisplayColor;
 
 use crate::apps::client::*;
 
@@ -23,32 +22,17 @@ pub(super) fn update_ui_content(
 		lightness,
 		..
 	} = paint.0.into();
-	use ColorPanelChanger::*;
 	query_text.p1().iter_mut().for_each(|(mut texted, panel)| {
 		let num = match panel {
-			Red => r.to_string(),
-			Green => g.to_string(),
-			Blue => b.to_string(),
-			Alpha => a.to_string(),
-			Hue => format!("{:.3}", hue),
-			Saturation => format!("{:.3}", saturation),
-			Lightness => format!("{:.3}", lightness),
-			SatLight => format!("{:.3}:{:.3}", saturation, lightness),
+			ColorPanelChanger::Red => r.to_string(),
+			ColorPanelChanger::Green => g.to_string(),
+			ColorPanelChanger::Blue => b.to_string(),
+			ColorPanelChanger::Alpha => a.to_string(),
+			ColorPanelChanger::Hue => hue.to_string(),
+			ColorPanelChanger::Saturation => saturation.to_string(),
+			ColorPanelChanger::Lightness => lightness.to_string(),
+			ColorPanelChanger::SatLight => format!("{}:{}", saturation, lightness),
 		};
-		match panel {
-			Lightness | SatLight => {},
-			_ => {
-				let color = if lightness > 0.6 {
-					Color::BLACK
-				} else {
-					Color::WHITE
-				};
-
-				texted.sections[0].style.color.apply_diff(color);
-				texted.sections[1].style.color.apply_diff(color);
-			},
-		}
-
 		texted.sections[1].value = num;
 	});
 }
@@ -110,51 +94,3 @@ pub(super) fn update_color_image(
 		img.data = data;
 	}
 }
-
-pub(super) fn update_visiblity(
-	query_object: Query<(Entity, &Visibility), (Changed<Visibility>, With<ObjectWorld>)>,
-	mut query_icon: Query<
-		(
-			(Has<IconVisiblity>, &mut Visibility),
-			Relations<ObjectRelationUI>,
-		),
-		Without<ObjectWorld>,
-	>,
-) {
-	if query_object.is_empty() {
-		return;
-	}
-	query_object.iter().for_each(|(ent_obj, visiblity)| {
-		query_icon
-			.traverse_mut::<ObjectRelationUI>([ent_obj])
-			.for_each(|ui, _| {
-				if ui.0 {
-					*ui.1 = *visiblity;
-					info!("RUN IN 2");
-				}
-				info!("RUN");
-			});
-	});
-}
-
-// pub(super) fn update_move(
-// 	query_object: Query<Entity, (Changed<InheritedVisibility>, With<ObjectWorld>)>,
-// 	mut query_visit: Query<(
-// 		(&mut Visibility, Has<IconVisiblity>),
-// 		Relations<ObjectRelationUI>,
-// 	)>,
-// ) {
-// 	if query_object.is_empty() {
-// 		return;
-// 	}
-// 	info!("NO RUN");
-// 	query_visit
-// 		.traverse_mut::<ObjectRelationUI>(query_object.iter())
-// 		.track_self()
-// 		.for_each(|obj, _, ui, _| {
-// 			if ui.1 {
-// 				*ui.0 = obj.0.clone();
-// 			}
-// 			info!("RUN");
-// 		});
-// }

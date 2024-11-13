@@ -87,8 +87,6 @@ impl Plugin for MegaEditorPlugin {
 			.add_systems(
 				PostUpdate,
 				(
-					release_done::<EditorTools>,
-					release_done::<VerifyAction>,
 					generate_action_diffs::<VerifyAction>.before(send_action_net),
 					generate_action_diffs::<ClientAction>.before(send_action_net),
 					send_action_net,
@@ -96,14 +94,6 @@ impl Plugin for MegaEditorPlugin {
 					.run_if(in_state(RdioClientState::Online)),
 			);
 	}
-}
-
-fn release_done<T: Actionlike>(mut query_action: Query<&mut ActionState<T>>) {
-	query_action.iter_mut().for_each(|mut action| {
-		for act in action.get_just_pressed() {
-			action.release(&act);
-		}
-	});
 }
 
 // fn save_user_tooling_scene(world: &mut World) {
