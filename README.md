@@ -3,7 +3,7 @@ Source code will publish once everything ready.
 # Rainful-Diffolor
 Design, Create, Share creativity in real time.
 
-![image](https://github.com/Chssam/Rainful-Diffolor/blob/main/Display/Rainful%20Diffolor%201730888099418544700.png?raw=true)
+![image](https://github.com/Chssam/Rainful-Diffolor/blob/last_present/Display/Screen%201.png?raw=true)
 
 Support editing both graphic, raster & vector (Image & SVG).
 
